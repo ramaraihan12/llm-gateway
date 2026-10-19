@@ -169,9 +169,10 @@ export class GeminiProvider implements Provider {
         stopSequences: stopSequences(req),
       },
     };
-    const url = stream
-      ? `${this.opts.baseUrl}/models/${model}:streamGenerateContent?alt=sse`
-      : `${this.opts.baseUrl}/models/${model}:generateContent`;
+    // The model name comes from the client and is the only part of the path it
+    // controls, so it must not be able to add segments or a query string.
+    const path = `${this.opts.baseUrl}/models/${encodeURIComponent(model)}`;
+    const url = stream ? `${path}:streamGenerateContent?alt=sse` : `${path}:generateContent`;
     return postJson(this.name, url, body, { 'x-goog-api-key': this.opts.apiKey }, signal);
   }
 }

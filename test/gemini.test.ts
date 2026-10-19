@@ -163,6 +163,21 @@ describe('gemini adapter', () => {
     ]);
   });
 
+  it('keeps the model name inside its own path segment', async () => {
+    let url = '';
+    server.use(
+      http.post(`${BASE}/models/*`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({ candidates: [{ content: { parts: [{ text: 'hi' }] }, finishReason: 'STOP' }] });
+      }),
+    );
+
+    await gemini.complete(chatRequest(), { model: '../cachedContents?x=1#', signal });
+
+    expect(new URL(url).pathname).toBe('/v1beta/models/..%2FcachedContents%3Fx%3D1%23:generateContent');
+    expect(new URL(url).search).toBe('');
+  });
+
   it('treats a blocked prompt as a content filter stop', async () => {
     server.use(
       http.post(`${BASE}/models/m:generateContent`, () =>
