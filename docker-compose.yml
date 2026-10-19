@@ -1,0 +1,35 @@
+# Postgres plus the gateway. Ollama is expected on the host, the cloud
+# providers need their keys in .env.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: llm_gateway
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d llm_gateway']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build: .
+    command: ['sh', '-c', 'node dist/db/migrate.js && exec node dist/index.js']
+    env_file: .env
+    environment:
+      PORT: '8080'
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/llm_gateway
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '8080:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
