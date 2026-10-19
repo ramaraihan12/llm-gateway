@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import { ProviderError } from '../src/errors.js';
 import { OpenAIProvider } from '../src/providers/openai.js';
-import { chatRequest, collect, server, signal, sseResponse } from './helpers.js';
+import { chatRequest, collect, mockUpstreams, server, signal, sseResponse } from './helpers.js';
+
+mockUpstreams();
 
 const URL = 'https://openai.test/v1/chat/completions';
 const openai = new OpenAIProvider('openai', { baseUrl: 'https://openai.test/v1', apiKey: 'sk-test' });

@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import { ProviderError } from '../src/errors.js';
 import { OllamaProvider } from '../src/providers/ollama.js';
-import { chatRequest, collect, ndjsonResponse, server, signal } from './helpers.js';
+import { chatRequest, collect, mockUpstreams, ndjsonResponse, server, signal } from './helpers.js';
+
+mockUpstreams();
 
 const URL = 'http://ollama.test/api/chat';
 const ollama = new OllamaProvider('ollama', { baseUrl: 'http://ollama.test', think: false });

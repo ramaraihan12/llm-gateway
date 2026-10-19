@@ -1,9 +1,21 @@
 import { HttpResponse } from 'msw/http';
 import { setupServer } from 'msw/node';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 import type { ChatRequest } from '../src/openai.js';
 import type { StreamPart } from '../src/providers/types.js';
 
 export const server = setupServer();
+
+/**
+ * Intercepts outgoing HTTP for the current test file. Any request without a
+ * handler fails the test, so nothing can reach a real API. Kept per file
+ * because msw also slows down raw sockets, which the Postgres test needs.
+ */
+export function mockUpstreams(): void {
+  beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+}
 
 export const signal = new AbortController().signal;
 

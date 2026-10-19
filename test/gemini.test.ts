@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import { InvalidRequestError } from '../src/errors.js';
 import { GeminiProvider, SKIP_SIGNATURE, toGeminiContents } from '../src/providers/gemini.js';
-import { chatRequest, collect, server, signal, sseResponse } from './helpers.js';
+import { chatRequest, collect, mockUpstreams, server, signal, sseResponse } from './helpers.js';
+
+mockUpstreams();
 
 const BASE = 'https://gemini.test/v1beta';
 const gemini = new GeminiProvider('gemini', { baseUrl: BASE, apiKey: 'g-test' });

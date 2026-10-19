@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import { ProviderError } from '../src/errors.js';
 import { AnthropicProvider, toAnthropicMessages } from '../src/providers/anthropic.js';
-import { chatRequest, collect, server, signal, sseResponse } from './helpers.js';
+import { chatRequest, collect, mockUpstreams, server, signal, sseResponse } from './helpers.js';
+
+mockUpstreams();
 
 const URL = 'https://anthropic.test/v1/messages';
 const anthropic = new AnthropicProvider('anthropic', { baseUrl: 'https://anthropic.test/v1', apiKey: 'ak-test' });
