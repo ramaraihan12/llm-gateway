@@ -11,7 +11,7 @@ With no cloud keys set, every alias falls through to local Ollama, so you can tr
 A real run on my laptop (RTX 3060 6 GB, no cloud keys, so `fast` ends up on Ollama):
 
 ```console
-$ curl -si localhost:8104/v1/chat/completions -H "authorization: Bearer $GW_KEY" \
+$ curl -si localhost:8080/v1/chat/completions -H "authorization: Bearer $GW_KEY" \
     -H 'content-type: application/json' \
     -d '{"model":"fast","messages":[{"role":"user","content":"In one short sentence, what does an API gateway do?"}],"max_tokens":60}'
 HTTP/1.1 200 OK
@@ -60,7 +60,7 @@ answer: The current weather in Salatiga is 24°C with light rain.
 - 429, 5xx and network errors are retried on the same provider with exponential backoff and full jitter, honouring `Retry-After` up to the cap. Timeouts and other 4xx errors go straight to the next provider, so one hung provider costs one timeout, not three. A stream can still fall back until its first chunk is sent.
 - Client keys are 32 random bytes, stored as sha256 hashes. Each key has its own requests-per-minute token bucket.
 - Every request writes a row to `usage_logs` (provider, model, tokens, latency, attempts, cache hit, cost from the `pricing` table in the config). `GET /admin/usage` sums them per model and per key.
-- Optional exact-match cache for non-streaming requests, in memory and scoped per API key.
+- Exact-match cache for non-streaming requests, in memory and scoped per API key. The shipped config turns it on for 5 minutes, so the same prompt gets the same answer in that window. Set `cache.enabled: false` if you don't want that.
 
 ## Stack
 
