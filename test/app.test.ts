@@ -181,6 +181,28 @@ describe('POST /v1/chat/completions', () => {
     expect(await notJson.json()).toMatchObject({ error: { message: 'request body must be JSON', param: null } });
   });
 
+  it('rejects parameters it would otherwise drop, unless they are at their default', async () => {
+    const { chat } = await setup();
+    ollamaSays('plain text');
+
+    const json = await chat({ ...hello, response_format: { type: 'json_object' } });
+    const seeded = await chat({ ...hello, seed: 42 });
+    const defaults = await chat({
+      ...hello,
+      response_format: { type: 'text' },
+      presence_penalty: 0,
+      parallel_tool_calls: true,
+      user: 'someone',
+    });
+
+    expect(json.status).toBe(400);
+    expect(await json.json()).toMatchObject({
+      error: { message: 'response_format: not supported by the gateway', param: 'response_format' },
+    });
+    expect(await seeded.json()).toMatchObject({ error: { param: 'seed' } });
+    expect(defaults.status).toBe(200);
+  });
+
   it('never forwards a direct ref that tries to leave the model path', async () => {
     const withGemini = parseConfig({
       providers: { gemini: { type: 'gemini', baseUrl: 'https://gemini.test/v1beta', apiKey: 'g-test' } },

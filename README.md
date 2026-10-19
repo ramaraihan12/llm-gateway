@@ -108,5 +108,5 @@ Every upstream API is mocked with msw, so no keys or network needed. The Postgre
 
 - I've only run Ollama end to end. The OpenAI, Gemini and Anthropic adapters are written against their docs and tested against mocked responses shaped like their docs, not live calls.
 - Rate limits and the cache live in process memory. Fine for one instance, but with several replicas each one counts on its own. Redis would be the next step.
-- Only text content goes through. Image parts get a 400 instead of being silently dropped.
+- Only text content goes through. Image parts get a 400 instead of being silently dropped, and so do OpenAI parameters the adapters don't translate yet (`response_format`, `seed`, penalties, logprobs and a few more) unless they are at their default. Mapping JSON mode onto each provider is next on my list.
 - Once a stream has sent its first chunk there is no falling back. If the provider dies halfway the client gets an error event and the usage row is marked as an error.

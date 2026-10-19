@@ -1,5 +1,6 @@
 // The gateway speaks the OpenAI Chat Completions format on both sides of the
 // router. Provider adapters translate from and to these shapes.
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 
 const textPart = z.object({ type: z.literal('text'), text: z.string() });
@@ -43,7 +44,27 @@ const toolChoice = z.union([
   z.object({ type: z.literal('function'), function: z.object({ name: z.string() }) }),
 ]);
 
-export const chatRequestSchema = z.looseObject({
+// OpenAI parameters the adapters do not translate, with the values that mean
+// "off". Anything else gets a 400: dropping response_format, for example,
+// would quietly turn a JSON answer into prose.
+const unsupportedParams: Record<string, unknown[]> = {
+  response_format: [{ type: 'text' }],
+  seed: [],
+  presence_penalty: [0],
+  frequency_penalty: [0],
+  logit_bias: [{}],
+  logprobs: [false],
+  top_logprobs: [0],
+  parallel_tool_calls: [true],
+  reasoning_effort: [],
+  modalities: [['text']],
+  audio: [],
+  prediction: [],
+  functions: [],
+  function_call: [],
+};
+
+const requestFields = z.looseObject({
   model: z.string().min(1),
   messages: z.array(message).min(1),
   stream: z.boolean().optional(),
@@ -56,6 +77,14 @@ export const chatRequestSchema = z.looseObject({
   tools: z.array(tool).optional(),
   tool_choice: toolChoice.optional(),
   n: z.literal(1, { error: 'only n=1 is supported' }).nullish(),
+});
+
+export const chatRequestSchema = requestFields.superRefine((req, ctx) => {
+  for (const [name, defaults] of Object.entries(unsupportedParams)) {
+    const value = req[name];
+    if (value == null || defaults.some((off) => isDeepStrictEqual(off, value))) continue;
+    ctx.addIssue({ code: 'custom', path: [name], message: 'not supported by the gateway' });
+  }
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
