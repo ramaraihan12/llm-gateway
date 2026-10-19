@@ -4,7 +4,7 @@
 
 A small OpenAI-compatible gateway in front of OpenAI, Gemini, Anthropic and Ollama. Apps call one endpoint with an alias like `fast`, the gateway picks a provider, falls back to the next one when it fails, and logs tokens, latency and estimated cost for every request.
 
-With no cloud keys set, every alias falls through to local Ollama, so you can try it without paying anything.
+With no cloud keys set, every alias falls through to local Ollama, so you can try it without paying anything. One catch: keys already exported in your shell win over `.env`, even over an empty value there. Check the `providers loaded` line in the startup log before assuming everything is local.
 
 ## What it looks like
 
@@ -78,7 +78,7 @@ pnpm key:create --name my-app --rpm 60   # prints the key once, only the hash is
 pnpm dev                                 # http://localhost:8080
 ```
 
-The shipped `gateway.yaml` uses `qwen3.5-9b:iq4xs` because that is what my Ollama has. Change the `ollama/...` entries to something from `ollama list`. Cloud providers switch on as soon as their key is in `.env`, see `.env.example` for the names.
+The shipped `gateway.yaml` uses `qwen3.5-9b:iq4xs` because that is what my Ollama has. Change the `ollama/...` entries to something from `ollama list`. Cloud providers switch on as soon as their key is in `.env` or in your shell, see `.env.example` for the names.
 
 Then point any OpenAI client at `http://localhost:8080/v1` with the key from above:
 
