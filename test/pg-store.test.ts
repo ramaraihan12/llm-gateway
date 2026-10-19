@@ -18,6 +18,7 @@ describe.skipIf(!url)('PgStore (postgres)', () => {
   const db = drizzle({ client });
   const store = new PgStore(db);
   const runId = randomUUID().slice(0, 8);
+  const prefix = `gw-${runId}`;
   const startedAt = new Date(Date.now() - 1000);
   let keyId = '';
 
@@ -37,16 +38,21 @@ describe.skipIf(!url)('PgStore (postgres)', () => {
     const created = await store.createKey({
       name: `test-${runId}`,
       keyHash: hashKey(`secret-${runId}`),
-      keyPrefix: 'gw-test',
+      keyPrefix: prefix,
       rateLimitPerMinute: 5,
     });
     keyId = created.id;
+    const listed = async () => (await store.listKeys()).find((key) => key.prefix === prefix);
 
     expect(await store.findActiveKey(hashKey(`secret-${runId}`))).toEqual(created);
     expect(await store.findActiveKey(hashKey('something else'))).toBeUndefined();
+    expect(await listed()).toMatchObject({ name: `test-${runId}`, rateLimitPerMinute: 5, revokedAt: null });
 
-    await db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, keyId));
+    await store.revokeKey(prefix);
+
     expect(await store.findActiveKey(hashKey(`secret-${runId}`))).toBeUndefined();
+    expect((await listed())?.revokedAt).toBeInstanceOf(Date);
+    await expect(store.revokeKey(prefix)).rejects.toThrow(`no active key with prefix ${prefix}`);
   });
 
   it('sums usage per model and per key', async () => {

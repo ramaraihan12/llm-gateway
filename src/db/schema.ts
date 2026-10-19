@@ -5,7 +5,8 @@ export const apiKeys = pgTable('api_keys', {
   name: text('name').notNull(),
   // sha256 of the key. Keys are 32 random bytes, so a slow password hash buys nothing.
   keyHash: text('key_hash').notNull().unique(),
-  // First few characters, so a key can be recognised in logs without storing it.
+  // First 10 characters, so key:list can show a key and key:revoke can find it
+  // without storing the key itself.
   keyPrefix: text('key_prefix').notNull(),
   rateLimitPerMinute: integer('rate_limit_per_minute').notNull().default(60),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

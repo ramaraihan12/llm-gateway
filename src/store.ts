@@ -11,6 +11,15 @@ export interface NewApiKey {
   rateLimitPerMinute: number;
 }
 
+/** What key:list shows. The hash never leaves the database. */
+export interface KeySummary {
+  prefix: string;
+  name: string;
+  rateLimitPerMinute: number;
+  createdAt: Date;
+  revokedAt: Date | null;
+}
+
 export interface UsageEntry {
   apiKeyId: string;
   requestedModel: string;

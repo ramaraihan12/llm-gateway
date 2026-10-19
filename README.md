@@ -88,6 +88,8 @@ curl localhost:8080/v1/chat/completions -H "authorization: Bearer $GW_KEY" \
   -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
 ```
 
+`pnpm key:list` shows every key by its prefix, and `pnpm key:revoke gw-AbC1234` switches one off right away.
+
 `model` can be an alias or a direct `provider/model` like `ollama/qwen3.5-9b:iq4xs`. `GET /v1/models` lists the aliases that have at least one usable provider. `GET /admin/usage?since=2026-10-01` with `Authorization: Bearer $ADMIN_TOKEN` gives the summary, last 24 hours by default.
 
 With Docker, `docker compose up --build` starts Postgres and the gateway on port 8080 and runs the migrations on start. Ollama stays on the host. Create a key with:
@@ -95,6 +97,8 @@ With Docker, `docker compose up --build` starts Postgres and the gateway on port
 ```bash
 docker compose exec gateway node dist/cli/create-key.js --name my-app
 ```
+
+`list-keys.js` and `revoke-key.js` sit next to it.
 
 ## Tests
 

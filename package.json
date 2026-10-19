@@ -19,7 +19,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
-    "key:create": "tsx --env-file-if-exists=.env src/cli/create-key.ts"
+    "key:create": "tsx --env-file-if-exists=.env src/cli/create-key.ts",
+    "key:list": "tsx --env-file-if-exists=.env src/cli/list-keys.ts",
+    "key:revoke": "tsx --env-file-if-exists=.env src/cli/revoke-key.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",

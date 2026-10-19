@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import {
   sumTotals,
   type ApiKeyRecord,
+  type KeySummary,
   type NewApiKey,
   type Store,
   type UsageEntry,
@@ -22,6 +23,14 @@ const keyColumns = {
   id: apiKeys.id,
   name: apiKeys.name,
   rateLimitPerMinute: apiKeys.rateLimitPerMinute,
+};
+
+const summaryColumns = {
+  prefix: apiKeys.keyPrefix,
+  name: apiKeys.name,
+  rateLimitPerMinute: apiKeys.rateLimitPerMinute,
+  createdAt: apiKeys.createdAt,
+  revokedAt: apiKeys.revokedAt,
 };
 
 const totals = {
@@ -49,6 +58,27 @@ export class PgStore implements Store {
     const [row] = await this.db.insert(apiKeys).values(key).returning(keyColumns);
     if (!row) throw new Error('insert returned no row');
     return row;
+  }
+
+  async listKeys(): Promise<KeySummary[]> {
+    return this.db.select(summaryColumns).from(apiKeys).orderBy(apiKeys.createdAt);
+  }
+
+  /**
+   * Revokes the active key with this prefix. Two keys sharing a prefix is very
+   * unlikely, but if it happens nothing is revoked rather than both.
+   */
+  async revokeKey(prefix: string): Promise<KeySummary> {
+    return this.db.transaction(async (tx) => {
+      const active = and(eq(apiKeys.keyPrefix, prefix), isNull(apiKeys.revokedAt));
+      const matches = await tx.select({ id: apiKeys.id }).from(apiKeys).where(active);
+      if (matches.length === 0) throw new Error(`no active key with prefix ${prefix}`);
+      if (matches.length > 1) throw new Error(`${matches.length} active keys share prefix ${prefix}, nothing revoked`);
+
+      const [row] = await tx.update(apiKeys).set({ revokedAt: new Date() }).where(active).returning(summaryColumns);
+      if (!row) throw new Error('update returned no row');
+      return row;
+    });
   }
 
   async recordUsage(entry: UsageEntry): Promise<void> {
