@@ -1,0 +1,61 @@
+# Providers whose apiKey ends up empty are switched off at startup and skipped
+# in every chain. With no keys at all, everything lands on local Ollama.
+providers:
+  ollama:
+    type: ollama
+    baseUrl: ${OLLAMA_BASE_URL:-http://localhost:11434}
+    # qwen3.5 is a thinking model, without this a short answer takes ages.
+    think: false
+    # A local 9B model on a laptop GPU needs time to load.
+    timeoutMs: 120000
+  openai:
+    type: openai
+    apiKey: ${OPENAI_API_KEY}
+    timeoutMs: 30000
+  gemini:
+    type: gemini
+    apiKey: ${GEMINI_API_KEY}
+    timeoutMs: 30000
+  anthropic:
+    type: anthropic
+    apiKey: ${ANTHROPIC_API_KEY}
+    timeoutMs: 60000
+
+# What clients put in "model". Targets are tried top to bottom.
+aliases:
+  fast:
+    - gemini/gemini-3.8-flash
+    - openai/gpt-5.4-mini
+    - ollama/qwen3.5-9b:iq4xs
+  smart:
+    - anthropic/claude-sonnet-4-6
+    - openai/gpt-5.4
+    - gemini/gemini-3.8-flash
+  cheap:
+    - gemini/gemini-3.5-flash-lite
+    - anthropic/claude-haiku-4-5
+    - ollama/qwen3.5-9b:iq4xs
+  local:
+    - ollama/qwen3.5-9b:iq4xs
+
+retry:
+  maxAttempts: 3
+  baseDelayMs: 250
+  maxDelayMs: 4000
+
+# Exact-match cache for non-streaming requests, per API key, in memory.
+cache:
+  enabled: true
+  ttlSeconds: 300
+  maxEntries: 1000
+
+# USD per million tokens (input / output), list prices as of October 2026.
+# Only used for the estimated cost in the usage log.
+pricing:
+  ollama/qwen3.5-9b:iq4xs: { input: 0, output: 0 }
+  openai/gpt-5.4: { input: 2.5, output: 15 }
+  openai/gpt-5.4-mini: { input: 0.75, output: 4.5 }
+  gemini/gemini-3.8-flash: { input: 0.75, output: 3.75 }
+  gemini/gemini-3.5-flash-lite: { input: 0.3, output: 2.5 }
+  anthropic/claude-sonnet-4-6: { input: 3, output: 15 }
+  anthropic/claude-haiku-4-5: { input: 1, output: 5 }
