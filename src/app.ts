@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono, type MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { apiError } from './api-error.js';
 import type { AppDeps, GatewayEnv } from './deps.js';
 import { InvalidRequestError } from './errors.js';
@@ -8,6 +9,9 @@ import { AllProvidersFailedError } from './router.js';
 import { chatCompletions } from './routes/chat.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Long chat histories fit easily. Anything bigger is a mistake or abuse, and
+// would be buffered and parsed in full before the handler can say no.
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 export function createApp(deps: AppDeps) {
   const { registry, store, limiter, log } = deps;
@@ -51,7 +55,14 @@ export function createApp(deps: AppDeps) {
     await next();
   };
 
-  app.use('/v1/*', requireApiKey);
+  app.use(
+    '/v1/*',
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: (c) => apiError(c, 413, 'request body is over the 2 MB limit', 'invalid_request_error'),
+    }),
+    requireApiKey,
+  );
 
   app.get('/v1/models', (c) => {
     const data = registry

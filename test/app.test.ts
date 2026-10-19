@@ -181,6 +181,17 @@ describe('POST /v1/chat/completions', () => {
     expect(await notJson.json()).toMatchObject({ error: { message: 'request body must be JSON', param: null } });
   });
 
+  it('refuses request bodies over 2 MB', async () => {
+    const { chat } = await setup();
+    const calls = ollamaSays('never');
+
+    const res = await chat({ ...hello, messages: [{ role: 'user', content: 'x'.repeat(2 * 1024 * 1024) }] });
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ error: { type: 'invalid_request_error' } });
+    expect(calls.count).toBe(0);
+  });
+
   it('rejects parameters it would otherwise drop, unless they are at their default', async () => {
     const { chat } = await setup();
     ollamaSays('plain text');
