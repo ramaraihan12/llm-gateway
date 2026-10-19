@@ -83,9 +83,9 @@ export interface FallbackResult<T> {
 }
 
 /**
- * Tries each target in order. Transient failures (429, 5xx, network,
- * timeouts) are retried on the same target with backoff, anything else moves
- * straight to the next target.
+ * Tries each target in order. Transient failures (429, 5xx, network) are
+ * retried on the same target with backoff, anything else moves straight to
+ * the next target.
  */
 export async function callWithFallback<T>(
   chain: Target[],
@@ -125,8 +125,10 @@ export async function callWithFallback<T>(
 }
 
 function toProviderError(err: unknown, target: Target, deadline: Deadline): ProviderError {
+  // A provider that hung for the whole timeout will most likely hang again,
+  // and three tries would cost three full timeouts before any fallback.
   if (deadline.timedOut) {
-    return new ProviderError(target.provider.name, `timed out after ${target.timeoutMs}ms`, undefined, true);
+    return new ProviderError(target.provider.name, `timed out after ${target.timeoutMs}ms`, undefined, false);
   }
   if (err instanceof ProviderError) return err;
   // Anything else is a bug or a response shape we did not expect. Retrying

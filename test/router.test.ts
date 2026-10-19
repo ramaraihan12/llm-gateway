@@ -107,12 +107,14 @@ describe('callWithFallback', () => {
     expect(primary.complete).toHaveBeenCalledTimes(1);
   });
 
-  it('treats a timeout as retryable', async () => {
+  it('moves on to the next provider after a timeout instead of waiting again', async () => {
     const slow = fakeTarget('slow', [hang, succeed], 20);
+    const backup = fakeTarget('backup', [succeed]);
 
-    const result = await run([slow.target]);
+    const result = await run([slow.target, backup.target]);
 
-    expect(slow.complete).toHaveBeenCalledTimes(2);
+    expect(slow.complete).toHaveBeenCalledTimes(1);
+    expect(result.target.ref).toBe('backup/model');
     expect(result.attempts).toBe(2);
   });
 

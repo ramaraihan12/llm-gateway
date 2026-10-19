@@ -57,7 +57,7 @@ answer: The current weather in Salatiga is 24°C with light rain.
 
 - `gateway.yaml` maps aliases to fallback chains of `provider/model`. Providers without an API key are dropped at startup, so a chain like gemini, openai, ollama still works on a machine with no keys.
 - Each provider adapter is plain `fetch`, no SDKs. It translates messages, tools, `tool_choice`, finish reasons and usage both ways, and turns Anthropic content-block events, Gemini SSE and Ollama NDJSON into OpenAI `chat.completion.chunk`s.
-- 429, 5xx, network errors and timeouts are retried on the same provider with exponential backoff and full jitter, honouring `Retry-After` up to the cap. Other 4xx errors go straight to the next provider. A stream can still fall back until its first chunk is sent.
+- 429, 5xx and network errors are retried on the same provider with exponential backoff and full jitter, honouring `Retry-After` up to the cap. Timeouts and other 4xx errors go straight to the next provider, so one hung provider costs one timeout, not three. A stream can still fall back until its first chunk is sent.
 - Client keys are 32 random bytes, stored as sha256 hashes. Each key has its own requests-per-minute token bucket.
 - Every request writes a row to `usage_logs` (provider, model, tokens, latency, attempts, cache hit, cost from the `pricing` table in the config). `GET /admin/usage` sums them per model and per key.
 - Optional exact-match cache for non-streaming requests, in memory and scoped per API key.
