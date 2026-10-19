@@ -28,10 +28,6 @@ export class ResponseCache<T> {
       this.entries.delete(oldest);
     }
   }
-
-  get size(): number {
-    return this.entries.size;
-  }
 }
 
 /**

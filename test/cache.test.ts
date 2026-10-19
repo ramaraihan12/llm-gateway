@@ -12,7 +12,6 @@ describe('ResponseCache', () => {
     expect(cache.get('a')).toBe('value');
     now = 1000;
     expect(cache.get('a')).toBeUndefined();
-    expect(cache.size).toBe(0);
   });
 
   it('evicts the least recently used entry when full', () => {
