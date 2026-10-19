@@ -92,7 +92,7 @@ export function createApp(deps: AppDeps) {
 
   app.onError((err, c) => {
     if (err instanceof InvalidRequestError) return apiError(c, 400, err.message, 'invalid_request_error');
-    if (err instanceof AllProvidersFailedError) return apiError(c, 502, err.message, 'upstream_error');
+    if (err instanceof AllProvidersFailedError) return apiError(c, 502, err.publicMessage, 'upstream_error');
     if (c.req.raw.signal.aborted) {
       log.info({ path: c.req.path }, 'client closed the connection');
       return new Response(null, { status: 499 });

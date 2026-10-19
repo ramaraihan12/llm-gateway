@@ -129,6 +129,7 @@ describe('callWithFallback', () => {
     expect((error as AllProvidersFailedError).message).toBe(
       'all providers failed: a/model: failed with 500; b/model: failed with 400',
     );
+    expect((error as AllProvidersFailedError).publicMessage).toBe('all providers failed: a/model (500), b/model (400)');
   });
 
   it('stops on an invalid request instead of trying the next provider', async () => {

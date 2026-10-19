@@ -232,14 +232,19 @@ describe('POST /v1/chat/completions', () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({
       error: {
-        message:
-          'all providers failed: openai/gpt-5.4-mini: 401 upstream is sad; ollama/qwen3.5-9b:iq4xs: 404 model not found',
+        message: 'all providers failed: openai/gpt-5.4-mini (401), ollama/qwen3.5-9b:iq4xs (404)',
         type: 'upstream_error',
         param: null,
         code: null,
       },
     });
-    expect(store.usage[0]).toMatchObject({ status: 'error', provider: null, attempts: 2 });
+    expect(store.usage[0]).toMatchObject({
+      status: 'error',
+      provider: null,
+      attempts: 2,
+      error:
+        'all providers failed: openai/gpt-5.4-mini: 401 upstream is sad; ollama/qwen3.5-9b:iq4xs: 404 model not found',
+    });
   });
 });
 

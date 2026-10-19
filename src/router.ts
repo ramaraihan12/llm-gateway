@@ -16,6 +16,17 @@ export class AllProvidersFailedError extends Error {
     );
     this.name = 'AllProvidersFailedError';
   }
+
+  /**
+   * What the client gets back. Upstream messages can say things like "invalid
+   * x-api-key", which is the gateway's business, so they stay in the log and
+   * in usage_logs.error.
+   */
+  get publicMessage(): string {
+    if (this.failures.length === 0) return this.message;
+    const tried = this.failures.map((f) => `${f.ref} (${f.error.status ?? 'no response'})`);
+    return `all providers failed: ${tried.join(', ')}`;
+  }
 }
 
 /**
