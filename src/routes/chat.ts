@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { apiError } from '../api-error.js';
 import { cacheKey } from '../cache.js';
 import { splitRef } from '../config.js';
@@ -28,10 +28,16 @@ export function chatCompletions(deps: AppDeps) {
 
   return async (c: Context<GatewayEnv>) => {
     const startedAt = performance.now();
-    const body: unknown = await c.req.json().catch(() => undefined);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return apiError(c, 400, 'request body must be JSON', 'invalid_request_error');
+    }
     const parsed = chatRequestSchema.safeParse(body);
     if (!parsed.success) {
-      return apiError(c, 400, z.prettifyError(parsed.error), 'invalid_request_error');
+      const { message, param } = firstIssue(parsed.error);
+      return apiError(c, 400, message, 'invalid_request_error', null, param);
     }
     const req = parsed.data;
 
@@ -43,6 +49,7 @@ export function chatCompletions(deps: AppDeps) {
         `model "${req.model}" does not exist, GET /v1/models lists the aliases`,
         'invalid_request_error',
         'model_not_found',
+        'model',
       );
     }
     if (chain.length === 0) {
@@ -197,6 +204,17 @@ export function chatCompletions(deps: AppDeps) {
     if (cache) c.header('x-gateway-cache', 'miss');
     return c.json(completion);
   };
+}
+
+/** One readable line plus the field it is about, the way OpenAI reports bad requests. */
+function firstIssue(error: z.ZodError): { message: string; param: string | null } {
+  const issue = error.issues[0];
+  if (!issue) return { message: 'invalid request body', param: null };
+  const param = issue.path.reduce<string>((out, key) => {
+    if (typeof key === 'number') return `${out}[${key}]`;
+    return out ? `${out}.${String(key)}` : String(key);
+  }, '');
+  return param ? { message: `${param}: ${issue.message}`, param } : { message: issue.message, param: null };
 }
 
 function toCompletion(result: CompletionResult, target: Target): ChatCompletion {

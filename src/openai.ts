@@ -6,7 +6,9 @@ const textPart = z.object({ type: z.literal('text'), text: z.string() });
 
 // Only text content is supported for now. Image parts are rejected by the
 // schema instead of being silently dropped.
-const content = z.union([z.string(), z.array(textPart)]);
+const content = z.union([z.string(), z.array(textPart)], {
+  error: 'only text content is supported, as a string or a list of text parts',
+});
 
 const toolCall = z.object({
   id: z.string(),

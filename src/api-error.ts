@@ -11,6 +11,7 @@ export function apiError(
   message: string,
   type: ErrorType,
   code: string | null = null,
+  param: string | null = null,
 ) {
-  return c.json({ error: { message, type, param: null, code } }, status);
+  return c.json({ error: { message, type, param, code } }, status);
 }

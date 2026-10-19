@@ -145,8 +145,40 @@ describe('POST /v1/chat/completions', () => {
 
     expect(invalid.status).toBe(400);
     expect(unknown.status).toBe(404);
-    expect(await unknown.json()).toMatchObject({ error: { code: 'model_not_found' } });
+    expect(await unknown.json()).toMatchObject({ error: { code: 'model_not_found', param: 'model' } });
     expect(noProvider.status).toBe(503);
+  });
+
+  it('names the field that is wrong, like OpenAI does', async () => {
+    const { app, chat } = await setup();
+
+    const missing = await chat({ model: 'local' });
+    const image = await chat({
+      model: 'local',
+      messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'https://x.test/a.png' } }] }],
+    });
+    const notJson = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${API_KEY}`, 'content-type': 'application/json' },
+      body: '{"model":',
+    });
+
+    expect(await missing.json()).toEqual({
+      error: {
+        message: 'messages: Invalid input: expected array, received undefined',
+        type: 'invalid_request_error',
+        param: 'messages',
+        code: null,
+      },
+    });
+    expect(await image.json()).toMatchObject({
+      error: {
+        message: 'messages[0].content: only text content is supported, as a string or a list of text parts',
+        param: 'messages[0].content',
+      },
+    });
+    expect(notJson.status).toBe(400);
+    expect(await notJson.json()).toMatchObject({ error: { message: 'request body must be JSON', param: null } });
   });
 
   it('never forwards a direct ref that tries to leave the model path', async () => {
