@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
     "test": "vitest run"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "eslint": "10.13.0",
     "msw": "3.0.3",
     "pino-pretty": "13.2.0",
+    "prettier": "3.9.10",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
