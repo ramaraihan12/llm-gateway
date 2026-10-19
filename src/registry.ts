@@ -1,4 +1,4 @@
-import { splitRef, type GatewayConfig, type ProviderConfig } from './config.js';
+import { isModelRef, splitRef, type GatewayConfig, type ProviderConfig } from './config.js';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { OllamaProvider } from './providers/ollama.js';
@@ -56,7 +56,7 @@ export function buildRegistry(config: GatewayConfig): Registry {
     resolve(model) {
       const refs = config.aliases[model];
       if (refs) return toTargets(refs);
-      if (model.includes('/') && providers.has(splitRef(model).provider)) return toTargets([model]);
+      if (isModelRef(model) && providers.has(splitRef(model).provider)) return toTargets([model]);
       return undefined;
     },
     aliases() {

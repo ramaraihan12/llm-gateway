@@ -37,11 +37,11 @@ const config = parseConfig({
   },
 });
 
-async function setup({ rpm = 100, cache = false } = {}) {
+async function setup({ rpm = 100, cache = false, registry = buildRegistry(config) } = {}) {
   const store = new MemoryStore();
   await store.createKey({ name: 'tester', keyHash: hashKey(API_KEY), keyPrefix: 'gw-test', rateLimitPerMinute: rpm });
   const app = createApp({
-    registry: buildRegistry(config),
+    registry,
     store,
     limiter: new RateLimiter(),
     cache: cache ? new ResponseCache<CachedCompletion>(60_000, 10) : undefined,
@@ -147,6 +147,27 @@ describe('POST /v1/chat/completions', () => {
     expect(unknown.status).toBe(404);
     expect(await unknown.json()).toMatchObject({ error: { code: 'model_not_found' } });
     expect(noProvider.status).toBe(503);
+  });
+
+  it('never forwards a direct ref that tries to leave the model path', async () => {
+    const withGemini = parseConfig({
+      providers: { gemini: { type: 'gemini', baseUrl: 'https://gemini.test/v1beta', apiKey: 'g-test' } },
+      aliases: { cloud: ['gemini/gemini-3.8-flash'] },
+    });
+    const { chat } = await setup({ registry: buildRegistry(withGemini) });
+    let upstreamCalls = 0;
+    server.use(
+      http.all('https://gemini.test/*', () => {
+        upstreamCalls++;
+        return HttpResponse.json({});
+      }),
+    );
+
+    for (const model of ['gemini/../../admin/thing?x=1#', 'gemini/../cachedContents?', 'gemini/../x']) {
+      const res = await chat({ ...hello, model });
+      expect(res.status, model).toBe(404);
+    }
+    expect(upstreamCalls).toBe(0);
   });
 
   it('returns an OpenAI-shaped completion and logs usage with cost', async () => {

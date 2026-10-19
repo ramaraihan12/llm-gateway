@@ -64,4 +64,19 @@ describe('registry', () => {
     expect(registry.resolve('gpt-4')).toBeUndefined();
     expect(registry.resolve('mistral/large')).toBeUndefined();
   });
+
+  it('refuses direct refs with dot segments or url syntax', () => {
+    for (const ref of [
+      'openai/../admin',
+      'openai/./gpt-5.4',
+      'ollama/hf.co/../../api/pull',
+      'openai/gpt-5.4?x=1',
+      'openai/gpt-5.4#',
+      'openai/gpt 5.4',
+      'openai/',
+      'openai//gpt-5.4',
+    ]) {
+      expect(registry.resolve(ref), ref).toBeUndefined();
+    }
+  });
 });

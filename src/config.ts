@@ -36,7 +36,16 @@ const providerSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-const modelRef = z.string().regex(/^[\w.-]+\/.+$/, 'expected "provider/model"');
+// The model part can have its own slashes (hf.co/org/repo:Q4_K_M on Ollama),
+// but no dot segments, query strings or whitespace. Clients can send a direct
+// ref, and the Gemini adapter puts the model name into the upstream URL.
+const REF_PATTERN = /^[\w.-]+(?:\/[\w.:@-]+)+$/;
+
+export function isModelRef(value: string): boolean {
+  return REF_PATTERN.test(value) && !value.split('/').some((segment) => segment === '.' || segment === '..');
+}
+
+const modelRef = z.string().refine(isModelRef, 'expected "provider/model"');
 
 const configSchema = z
   .object({
