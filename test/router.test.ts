@@ -22,7 +22,9 @@ function fakeTarget(name: string, steps: (() => Promise<CompletionResult>)[], ti
     if (!step) throw new Error('no steps');
     return Promise.race([
       step(),
-      new Promise<never>((_, reject) => opts.signal.addEventListener('abort', () => reject(opts.signal.reason))),
+      new Promise<never>((_, reject) =>
+        opts.signal.addEventListener('abort', () => reject(opts.signal.reason as Error)),
+      ),
     ]);
   });
   const provider = { name, complete, stream: vi.fn() } as unknown as Provider;
