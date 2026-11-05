@@ -4,6 +4,8 @@
 
 A small OpenAI-compatible gateway in front of OpenAI, Gemini, Anthropic and Ollama. Apps call one endpoint with an alias like `fast`, the gateway picks a provider, falls back to the next one when it fails, and logs tokens, latency and estimated cost for every request.
 
+**Live demo:** https://llm-gateway-red.vercel.app, no key or login. Send a prompt and see which provider answered. It's the real gateway on one Gemini alias, with tight limits (see [the public demo](#the-public-demo)). The database sleeps when idle, which can add about a second to the first request after a quiet spell.
+
 With no cloud keys set, every alias falls through to local Ollama, so you can try it without paying anything. One catch: keys already exported in your shell win over `.env`, even over an empty value there. Check the `providers loaded` line in the startup log before assuming everything is local.
 
 ## What it looks like
@@ -100,6 +102,22 @@ docker compose exec gateway node dist/cli/create-key.js --name my-app
 
 `list-keys.js` and `revoke-key.js` sit next to it.
 
+## The public demo
+
+A gateway that holds a provider key and answers anyone is an open proxy, so the demo doesn't run the normal config. `GATEWAY_CONFIG=gateway.demo.yaml` has one provider, one alias and a `demo` block, and that block changes how requests are handled (`src/demo.ts`):
+
+- Client keys are off. Everyone is anonymous and gets the same limits, and sending a key changes nothing.
+- Only `"model": "demo"` is served. Other aliases and direct `provider/model` refs get a 403, even one that names the demo's own model. Tools get a 400.
+- Messages are capped at 2000 bytes. There's no tokenizer here, so the cap is in bytes: on Gemini that came to about 400 tokens of English and 1400 of random characters.
+- `max_tokens` and `max_completion_tokens` are both capped at 256, and 256 is sent when the client asks for nothing. Gemini treats that as a target: most capped answers stop at 252 tokens, but a list of numbers came back with 422.
+- Each IP gets 5 requests a minute and 20 a day, and the whole demo stops at 100 a day (UTC).
+
+Vercel runs this as a function (`api/index.ts`), which is why memory won't do for the limits: every instance would count on its own. They live in the `demo_quota` table instead, and each hit is one `INSERT ... ON CONFLICT DO UPDATE ... WHERE hits < limit`, so instances racing for the last request can't both get it. If Postgres can't be reached the request is refused, not waved through. Checks that don't need the database run first, so junk traffic doesn't wake it up.
+
+The IP comes from `x-real-ip`, which Vercel overwrites. On another host `demo.ipHeader` has to be a header that host sets itself, or clients can pick their own bucket. Only `application/json` is accepted, because a browser can send `text/plain` from any website without a preflight and spend the daily cap that way.
+
+To deploy your own, run `pnpm db:migrate`, then set `DATABASE_URL`, `ADMIN_TOKEN`, `GEMINI_API_KEY` and `GATEWAY_CONFIG=gateway.demo.yaml` for production only. On Neon use the pooled connection string, drop `channel_binding` from it (`postgres` passes unknown parameters on to the server) and use `sslmode=verify-full`, because `require` doesn't check the certificate with this driver.
+
 ## Tests
 
 ```bash
@@ -110,7 +128,7 @@ Every upstream API is mocked with msw, so no keys or network needed. The Postgre
 
 ## Notes
 
-- I've only run Ollama end to end. The OpenAI, Gemini and Anthropic adapters are written against their docs and tested against mocked responses shaped like their docs, not live calls.
-- Rate limits and the cache live in process memory. Fine for one instance, but with several replicas each one counts on its own. Redis would be the next step.
+- I've run Ollama and Gemini end to end, Gemini through the public demo (plain and streaming requests, not tool calls). The OpenAI and Anthropic adapters are written against their docs and tested against mocked responses shaped like their docs, not live calls.
+- Per-key rate limits and the cache live in process memory. Fine for one instance, but with several replicas each one counts on its own. Redis would be the next step. Only the public demo's limits are in Postgres.
 - Only text content goes through. Image parts get a 400 instead of being silently dropped, and so do OpenAI parameters the adapters don't translate yet (`response_format`, `seed`, penalties, logprobs and a few more) unless they are at their default. Mapping JSON mode onto each provider is next on my list.
 - Once a stream has sent its first chunk there is no falling back. If the provider dies halfway the client gets an error event and the usage row is marked as an error.
