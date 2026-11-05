@@ -1,13 +1,13 @@
 // Runs against a real Postgres when TEST_DATABASE_URL is set (CI does this),
 // skipped otherwise. It only touches rows it created itself.
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PgStore } from '../src/db/pg-store.js';
-import { apiKeys, usageLogs } from '../src/db/schema.js';
+import { connect, PgStore } from '../src/db/pg-store.js';
+import { apiKeys, demoQuota, usageLogs } from '../src/db/schema.js';
 import { hashKey } from '../src/keys.js';
 import type { UsageEntry } from '../src/store.js';
 
@@ -31,6 +31,8 @@ describe.skipIf(!url)('PgStore (postgres)', () => {
       await db.delete(usageLogs).where(eq(usageLogs.apiKeyId, keyId));
       await db.delete(apiKeys).where(eq(apiKeys.id, keyId));
     }
+    await db.delete(demoQuota).where(like(demoQuota.bucket, `${runId}:%`));
+    await db.delete(apiKeys).where(eq(apiKeys.keyHash, 'public-demo'));
     await client.end();
   });
 
@@ -93,5 +95,44 @@ describe.skipIf(!url)('PgStore (postgres)', () => {
     });
     expect(key).toMatchObject({ requests: 4, errors: 1, promptTokens: 200 });
     expect(summary.totals.requests).toBeGreaterThanOrEqual(4);
+  });
+
+  it('lets exactly the limit through when many connections race for a bucket', async () => {
+    const { db: racing, close } = connect(url ?? '');
+    const racer = new PgStore(racing);
+    const bucket = `${runId}:race`;
+    const later = new Date(Date.now() + 60_000);
+    try {
+      const results = await Promise.all(Array.from({ length: 40 }, () => racer.takeQuota(bucket, 7, later)));
+
+      expect(results.filter((hits) => hits !== undefined).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+        1, 2, 3, 4, 5, 6, 7,
+      ]);
+      expect(await racer.takeQuota(bucket, 7, later)).toBeUndefined();
+    } finally {
+      await close();
+    }
+  });
+
+  it('sweeps only the buckets that have expired', async () => {
+    const now = new Date();
+    await store.takeQuota(`${runId}:old`, 5, new Date(now.getTime() - 1000));
+    await store.takeQuota(`${runId}:new`, 5, new Date(now.getTime() + 60_000));
+
+    await store.sweepQuota(now);
+
+    const left = await db
+      .select()
+      .from(demoQuota)
+      .where(like(demoQuota.bucket, `${runId}:%`));
+    expect(left.map((row) => row.bucket)).not.toContain(`${runId}:old`);
+    expect(left.map((row) => row.bucket)).toContain(`${runId}:new`);
+  });
+
+  it('gives demo traffic one key row that no bearer token can match', async () => {
+    const [first, second] = await Promise.all([store.demoKey(), store.demoKey()]);
+
+    expect(first.id).toBe(second.id);
+    expect(await store.findActiveKey(hashKey('public-demo'))).toBeUndefined();
   });
 });

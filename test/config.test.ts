@@ -24,6 +24,30 @@ describe('config', () => {
     ).toThrow(/unknown provider "groq"/);
   });
 
+  it('rejects a demo block that points at an unknown alias', () => {
+    const demo = {
+      alias: 'nope',
+      maxInputBytes: 1,
+      maxOutputTokens: 1,
+      ipHeader: 'x-real-ip',
+      perIpPerMinute: 1,
+      perIpPerDay: 1,
+      dailyCap: 1,
+    };
+
+    expect(() =>
+      parseConfig({ providers: { ollama: { type: 'ollama' } }, aliases: { local: ['ollama/x'] }, demo }),
+    ).toThrow(/unknown alias "nope"/);
+  });
+
+  it('keeps the shipped demo config down to one alias on one keyed provider', async () => {
+    const config = await loadConfig('gateway.demo.yaml', { GEMINI_API_KEY: 'test' });
+
+    expect(Object.keys(config.providers)).toEqual(['gemini']);
+    expect(Object.keys(config.aliases)).toEqual([config.demo?.alias]);
+    expect(config.aliases[config.demo?.alias ?? '']).toHaveLength(1);
+  });
+
   it('loads the shipped gateway.yaml', async () => {
     const config = await loadConfig('gateway.yaml', {});
 

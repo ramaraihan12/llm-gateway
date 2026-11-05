@@ -6,11 +6,12 @@ import { apiError } from '../api-error.js';
 import { cacheKey } from '../cache.js';
 import { splitRef } from '../config.js';
 import type { AppDeps, GatewayEnv } from '../deps.js';
-import { InvalidRequestError } from '../errors.js';
+import { InvalidRequestError, ProviderError } from '../errors.js';
 import {
   chatRequestSchema,
   type ChatCompletion,
   type ChatCompletionChunk,
+  type ChatRequest,
   type ChunkDelta,
   type FinishReason,
   type Usage,
@@ -23,8 +24,11 @@ import type { UsageEntry } from '../store.js';
 
 type UsageFields = Omit<UsageEntry, 'apiKeyId' | 'requestedModel' | 'stream' | 'latencyMs'>;
 
-export function chatCompletions(deps: AppDeps) {
-  const { registry, store, cache, retry, pricing, log } = deps;
+/** Runs on the parsed body, before any upstream call. Returning a Response stops the request there. */
+export type Admission = (c: Context<GatewayEnv>, req: ChatRequest) => Promise<ChatRequest | Response>;
+
+export function chatCompletions(deps: AppDeps, admit?: Admission) {
+  const { registry, store, cache, retry, pricing, log, background } = deps;
 
   return async (c: Context<GatewayEnv>) => {
     const startedAt = performance.now();
@@ -39,7 +43,9 @@ export function chatCompletions(deps: AppDeps) {
       const { message, param } = firstIssue(parsed.error);
       return apiError(c, 400, message, 'invalid_request_error', null, param);
     }
-    const req = parsed.data;
+    const admitted = admit ? await admit(c, parsed.data) : parsed.data;
+    if (admitted instanceof Response) return admitted;
+    const req = admitted;
 
     const chain = registry.resolve(req.model);
     if (!chain) {
@@ -66,7 +72,8 @@ export function chatCompletions(deps: AppDeps) {
         ...fields,
       };
       // Logging usage must never fail or slow down the response.
-      store.recordUsage(entry).catch((err: unknown) => log.error({ err }, 'could not record usage'));
+      const write = store.recordUsage(entry).catch((err: unknown) => log.error({ err }, 'could not record usage'));
+      background?.(write);
     };
     const recordFailure = (err: unknown) => {
       if (err instanceof InvalidRequestError) return;
@@ -148,7 +155,9 @@ export function chatCompletions(deps: AppDeps) {
               : String(err);
           log.warn({ target: target.ref, err: failure }, 'stream failed after it started');
           await value.iterator.return?.();
-          if (!stream.aborted) await send({ error: { message: failure, type: 'upstream_error' } });
+          // Same rule as the 502 body: upstream wording stays in the log.
+          const message = err instanceof ProviderError ? `${target.ref} failed mid-stream` : failure;
+          if (!stream.aborted) await send({ error: { message, type: 'upstream_error' } });
         } finally {
           deadline.clear();
           record({

@@ -67,6 +67,14 @@ export interface Store {
   createKey(key: NewApiKey): Promise<ApiKeyRecord>;
   recordUsage(entry: UsageEntry): Promise<void>;
   usageSummary(since: Date): Promise<UsageSummary>;
+  /**
+   * The row demo traffic is logged under, since usage_logs needs a key. Its
+   * hash is not a sha256, so no bearer token can ever match it.
+   */
+  demoKey(): Promise<ApiKeyRecord>;
+  /** Counts one hit and returns the new total, or undefined if the bucket is already at its limit. */
+  takeQuota(bucket: string, limit: number, expiresAt: Date): Promise<number | undefined>;
+  sweepQuota(now: Date): Promise<void>;
 }
 
 export function sumTotals(rows: UsageTotals[]): UsageTotals {

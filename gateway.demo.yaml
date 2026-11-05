@@ -1,0 +1,41 @@
+# The public demo, set GATEWAY_CONFIG=gateway.demo.yaml to use it. The demo block
+# turns off client keys and puts src/demo.ts in front of the chat route.
+# Only one provider on purpose: Ollama needs no key, so it would stay enabled.
+providers:
+  gemini:
+    type: gemini
+    apiKey: ${GEMINI_API_KEY}
+    timeoutMs: 20000
+
+aliases:
+  demo:
+    # Not gemini-2.5-flash: it spends most of a small output cap on thinking
+    # and the answer gets cut off.
+    - gemini/gemini-3.5-flash-lite
+
+# Retries are upstream calls the daily cap does not see, so keep them few. There
+# is no other provider to fall back to, and the free tier answers 503 under load.
+retry:
+  maxAttempts: 3
+  baseDelayMs: 400
+  maxDelayMs: 2000
+
+cache:
+  enabled: true
+  ttlSeconds: 300
+  maxEntries: 200
+
+pricing:
+  gemini/gemini-3.5-flash-lite: { input: 0.3, output: 2.5 }
+
+demo:
+  alias: demo
+  maxInputBytes: 2000
+  # Gemini treats this as a target. Most capped answers came back at 252 tokens,
+  # but number lists have reached 422.
+  maxOutputTokens: 256
+  # Vercel overwrites this one, a client cannot set it.
+  ipHeader: x-real-ip
+  perIpPerMinute: 5
+  perIpPerDay: 20
+  dailyCap: 100

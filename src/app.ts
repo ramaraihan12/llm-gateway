@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono, type MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { apiError } from './api-error.js';
+import { demoPage } from './demo-page.js';
+import { demoAdmission } from './demo.js';
 import type { AppDeps, GatewayEnv } from './deps.js';
 import { InvalidRequestError } from './errors.js';
 import { hashKey } from './keys.js';
@@ -14,7 +16,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 export function createApp(deps: AppDeps) {
-  const { registry, store, limiter, log } = deps;
+  const { registry, store, limiter, log, demo } = deps;
   const app = new Hono<GatewayEnv>();
 
   app.use(async (c, next) => {
@@ -55,19 +57,31 @@ export function createApp(deps: AppDeps) {
     await next();
   };
 
+  // Room for JSON escapes and the other fields, the input cap itself is checked
+  // on the parsed messages.
+  const maxBody = demo ? demo.maxInputBytes * 4 : MAX_BODY_BYTES;
+  const maxBodyText = demo ? `${maxBody} byte` : '2 MB';
   app.use(
     '/v1/*',
     bodyLimit({
-      maxSize: MAX_BODY_BYTES,
-      onError: (c) => apiError(c, 413, 'request body is over the 2 MB limit', 'invalid_request_error'),
+      maxSize: maxBody,
+      onError: (c) => apiError(c, 413, `request body is over the ${maxBodyText} limit`, 'invalid_request_error'),
     }),
-    requireApiKey,
   );
+
+  // The demo has no client keys. Everyone is anonymous and gets the same limits,
+  // so a key from api_keys buys nothing here.
+  if (demo) {
+    const targets = registry.resolve(demo.alias)?.map((target) => target.ref) ?? [];
+    app.get('/', (c) => c.html(demoPage(demo, targets)));
+  } else {
+    app.use('/v1/*', requireApiKey);
+  }
 
   app.get('/v1/models', (c) => {
     const data = registry
       .aliases()
-      .filter((entry) => entry.targets.length > 0)
+      .filter((entry) => entry.targets.length > 0 && (!demo || entry.alias === demo.alias))
       .map((entry) => ({
         id: entry.alias,
         object: 'model',
@@ -78,7 +92,8 @@ export function createApp(deps: AppDeps) {
     return c.json({ object: 'list', data });
   });
 
-  app.post('/v1/chat/completions', rateLimit, chatCompletions(deps));
+  if (demo) app.post('/v1/chat/completions', chatCompletions(deps, demoAdmission(deps, demo)));
+  else app.post('/v1/chat/completions', rateLimit, chatCompletions(deps));
 
   const requireAdmin: MiddlewareHandler<GatewayEnv> = async (c, next) => {
     const token = bearerToken(c.req.header('authorization'));

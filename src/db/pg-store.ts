@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import {
@@ -10,7 +10,7 @@ import {
   type UsageEntry,
   type UsageSummary,
 } from '../store.js';
-import { apiKeys, usageLogs } from './schema.js';
+import { apiKeys, demoQuota, usageLogs } from './schema.js';
 
 export function connect(databaseUrl: string) {
   const client = postgres(databaseUrl, { max: 10, onnotice: () => {} });
@@ -107,5 +107,37 @@ export class PgStore implements Store {
       .orderBy(sql`count(*) desc`);
 
     return { since: since.toISOString(), totals: sumTotals(byModel), byModel, byKey };
+  }
+
+  async demoKey(): Promise<ApiKeyRecord> {
+    const name = 'public-demo';
+    const [row] = await this.db
+      .insert(apiKeys)
+      .values({ name, keyHash: name, keyPrefix: 'demo', rateLimitPerMinute: 0 })
+      .onConflictDoUpdate({ target: apiKeys.keyHash, set: { name } })
+      .returning(keyColumns);
+    if (!row) throw new Error('upsert returned no row');
+    return row;
+  }
+
+  /**
+   * One statement, so the row lock makes it atomic: however many instances
+   * race for the last hit, the WHERE only lets one of them through.
+   */
+  async takeQuota(bucket: string, limit: number, expiresAt: Date): Promise<number | undefined> {
+    const [row] = await this.db
+      .insert(demoQuota)
+      .values({ bucket, hits: 1, expiresAt })
+      .onConflictDoUpdate({
+        target: demoQuota.bucket,
+        set: { hits: sql`${demoQuota.hits} + 1` },
+        setWhere: lt(demoQuota.hits, limit),
+      })
+      .returning({ hits: demoQuota.hits });
+    return row?.hits;
+  }
+
+  async sweepQuota(now: Date): Promise<void> {
+    await this.db.delete(demoQuota).where(lt(demoQuota.expiresAt, now));
   }
 }

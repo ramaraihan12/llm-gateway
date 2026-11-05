@@ -13,6 +13,18 @@ export const apiKeys = pgTable('api_keys', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
 });
 
+// Counters behind the public demo's limits. They live here and not in memory
+// because every serverless instance has to see the same count.
+export const demoQuota = pgTable(
+  'demo_quota',
+  {
+    bucket: text('bucket').primaryKey(),
+    hits: integer('hits').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('demo_quota_expires_at_idx').on(t.expiresAt)],
+);
+
 export const usageLogs = pgTable(
   'usage_logs',
   {

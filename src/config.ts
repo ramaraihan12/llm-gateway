@@ -47,6 +47,21 @@ export function isModelRef(value: string): boolean {
 
 const modelRef = z.string().refine(isModelRef, 'expected "provider/model"');
 
+// A public, keyless deployment. Only present in gateway.demo.yaml, see demo.ts.
+const demoSchema = z.object({
+  alias: z.string().min(1),
+  // There is no tokenizer here, so input is capped in bytes. On Gemini, 2000
+  // bytes came to about 400 tokens of English and 1400 of random characters.
+  maxInputBytes: z.number().int().positive(),
+  maxOutputTokens: z.number().int().positive(),
+  // Has to be a header the host sets itself. If clients can set it, they pick
+  // their own rate limit bucket.
+  ipHeader: z.string().min(1),
+  perIpPerMinute: z.number().int().positive(),
+  perIpPerDay: z.number().int().positive(),
+  dailyCap: z.number().int().positive(),
+});
+
 const configSchema = z
   .object({
     providers: z.record(z.string(), providerSchema),
@@ -67,8 +82,12 @@ const configSchema = z
       .prefault({}),
     // USD per million tokens, keyed by "provider/model".
     pricing: z.record(modelRef, z.object({ input: z.number().min(0), output: z.number().min(0) })).default({}),
+    demo: demoSchema.optional(),
   })
   .superRefine((config, ctx) => {
+    if (config.demo && !(config.demo.alias in config.aliases)) {
+      ctx.addIssue({ code: 'custom', path: ['demo', 'alias'], message: `unknown alias "${config.demo.alias}"` });
+    }
     for (const [alias, refs] of Object.entries(config.aliases)) {
       for (const ref of refs) {
         const provider = splitRef(ref).provider;
@@ -86,6 +105,7 @@ const configSchema = z
 export type GatewayConfig = z.infer<typeof configSchema>;
 export type ProviderConfig = GatewayConfig['providers'][string];
 export type RetryPolicy = GatewayConfig['retry'];
+export type DemoConfig = NonNullable<GatewayConfig['demo']>;
 
 export function splitRef(ref: string): { provider: string; model: string } {
   const slash = ref.indexOf('/');

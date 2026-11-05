@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 import type { ResponseCache } from './cache.js';
-import type { GatewayConfig } from './config.js';
+import type { DemoConfig, GatewayConfig } from './config.js';
 import type { ChatCompletion } from './openai.js';
 import type { RateLimiter } from './rate-limit.js';
 import type { Registry } from './registry.js';
@@ -21,6 +21,10 @@ export interface AppDeps {
   pricing: GatewayConfig['pricing'];
   adminToken: string;
   log: Logger;
+  /** Set when the config has a demo block. Turns the gateway into the public demo. */
+  demo?: DemoConfig;
+  /** Hosts that freeze after the response (Vercel) use this to finish writes that outlast it. */
+  background?: (work: Promise<unknown>) => void;
 }
 
 export interface GatewayEnv {

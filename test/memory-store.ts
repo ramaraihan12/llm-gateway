@@ -13,6 +13,7 @@ import {
 export class MemoryStore implements Store {
   readonly keys: (ApiKeyRecord & { keyHash: string })[] = [];
   readonly usage: (UsageEntry & { createdAt: Date })[] = [];
+  readonly quota = new Map<string, { hits: number; expiresAt: Date }>();
 
   findActiveKey(keyHash: string): Promise<ApiKeyRecord | undefined> {
     const key = this.keys.find((k) => k.keyHash === keyHash);
@@ -23,6 +24,27 @@ export class MemoryStore implements Store {
     const record = { id: randomUUID(), name: key.name, rateLimitPerMinute: key.rateLimitPerMinute };
     this.keys.push({ ...record, keyHash: key.keyHash });
     return Promise.resolve(record);
+  }
+
+  async demoKey(): Promise<ApiKeyRecord> {
+    const found = this.keys.find((k) => k.keyHash === 'public-demo');
+    return (
+      found ?? this.createKey({ name: 'public-demo', keyHash: 'public-demo', keyPrefix: 'demo', rateLimitPerMinute: 0 })
+    );
+  }
+
+  takeQuota(bucket: string, limit: number, expiresAt: Date): Promise<number | undefined> {
+    const hits = this.quota.get(bucket)?.hits ?? 0;
+    if (hits >= limit) return Promise.resolve(undefined);
+    this.quota.set(bucket, { hits: hits + 1, expiresAt });
+    return Promise.resolve(hits + 1);
+  }
+
+  sweepQuota(now: Date): Promise<void> {
+    for (const [bucket, { expiresAt }] of this.quota) {
+      if (expiresAt < now) this.quota.delete(bucket);
+    }
+    return Promise.resolve();
   }
 
   recordUsage(entry: UsageEntry): Promise<void> {
